@@ -17,9 +17,9 @@ def create_bolt(head_radius, head_height, bolt_radius, bolt_length):
     # Hexagonal head (_fn=6)
     head = cylinder(r=head_radius, h=head_height, _fn=6)
     
-    # Bolt body (cylindrical, _fn=64 for smoothness)
+    # Bolt body (cylindrical, _fn=100 for smoothness)
     # Using a simple cylinder for the threaded body as per standard CAD simplified representation
-    body = cylinder(r=bolt_radius, h=bolt_length, _fn=64)
+    body = cylinder(r=bolt_radius, h=bolt_length, _fn=100)
     
     # Translate body to sit on top of the head
     # Alternatively, the head is usually at the "top" z-wise or "bottom" depending on orientation.
@@ -42,11 +42,11 @@ def create_flange(flange_radius, pipe_radius, thickness, num_holes):
         SolidPython2 object
     """
     # Main disk
-    base = cylinder(r=flange_radius, h=thickness, _fn=64)
+    base = cylinder(r=flange_radius, h=thickness, _fn=100)
     
     # Central hole (make it slightly taller to ensure clean subtraction)
     epsilon = 0.1
-    central_hole = cylinder(r=pipe_radius, h=thickness + 2*epsilon, _fn=64).down(epsilon)
+    central_hole = cylinder(r=pipe_radius, h=thickness + 2*epsilon, _fn=100).down(epsilon)
     
     # Calculate bolt circle radius (halfway between pipe and flange edge)
     bolt_circle_radius = (flange_radius + pipe_radius) / 2.0
@@ -63,8 +63,8 @@ def create_flange(flange_radius, pipe_radius, thickness, num_holes):
     for i in range(num_holes):
         angle = i * angle_step
         # Create a hole, translate to bolt circle radius, then rotate
-        hole = cylinder(r=hole_radius, h=thickness + 2*epsilon, _fn=64).down(epsilon)
-        positioned_hole = hole.right(bolt_circle_radius).rotate(0, 0, angle)
+        hole = cylinder(r=hole_radius, h=thickness + 2*epsilon, _fn=100).down(epsilon)
+        positioned_hole = hole.right(bolt_circle_radius).rotate([0, 0, angle])
         bolt_holes.append(positioned_hole)
         
     # Subtract central hole and keyholes from base
@@ -91,7 +91,7 @@ def create_nut(inner_radius, outer_radius, thickness):
     
     # Inner hole
     epsilon = 0.1
-    hole = cylinder(r=inner_radius, h=thickness + 2*epsilon, _fn=64).down(epsilon)
+    hole = cylinder(r=inner_radius, h=thickness + 2*epsilon, _fn=100).down(epsilon)
     
     return hex_body - hole
 
@@ -108,11 +108,11 @@ def create_washer(inner_radius, outer_radius, thickness):
         SolidPython2 object
     """
     # Main disk
-    disk = cylinder(r=outer_radius, h=thickness, _fn=64)
+    disk = cylinder(r=outer_radius, h=thickness, _fn=100)
     
     # Central hole
     epsilon = 0.1
-    hole = cylinder(r=inner_radius, h=thickness + 2*epsilon, _fn=64).down(epsilon)
+    hole = cylinder(r=inner_radius, h=thickness + 2*epsilon, _fn=100).down(epsilon)
     
     return disk - hole
 

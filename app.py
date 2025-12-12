@@ -3,6 +3,7 @@ from solid2 import scad_render
 import cad_library as cl
 import subprocess
 import os
+import streamlit_stl
 
 st.set_page_config(page_title="Parametric CAD Modeler", layout="wide")
 
@@ -11,11 +12,7 @@ st.markdown("Select a component from the sidebar and adjust parameters to genera
 
 # Sidebar for Component Selection
 st.sidebar.header("Design Parameters")
-# Sidebar for OpenSCAD Path
-openscad_path = st.sidebar.text_input(
-    "OpenSCAD Executable Path",
-    value=r"C:\Program Files (x86)\OpenSCAD\openscad.exe" 
-)
+
 
 component_type = st.sidebar.selectbox(
     "Select Component",
@@ -51,7 +48,10 @@ elif component_type == "Nut":
     outer_radius = st.sidebar.slider("Outer Radius", min_value=2.0, max_value=60.0, value=10.0)
     thickness = st.sidebar.slider("Thickness", min_value=1.0, max_value=50.0, value=5.0)
     
-    generated_obj = cl.create_nut(inner_radius, outer_radius, thickness)
+    if inner_radius >= outer_radius:
+        st.error("Invalid Parameters: Inner Radius must be smaller than Outer Radius.")
+    else:
+        generated_obj = cl.create_nut(inner_radius, outer_radius, thickness)
 
 elif component_type == "Washer":
     inner_radius = st.sidebar.slider("Inner Radius", min_value=1.0, max_value=50.0, value=5.0)
@@ -72,40 +72,63 @@ elif component_type == "L-Bracket":
     generated_obj = cl.create_bracket(length, width, height, thickness)
 
 # Generate and Display SCAD Code
+@st.cache_data(show_spinner=False)
+def generate_stl_content(scad_code, scad_path):
+    with open("temp.scad", "w") as f:
+        f.write(scad_code)
+    
+    if not os.path.exists(scad_path):
+        raise FileNotFoundError("OpenSCAD executable not found at specified path.")
+
+    subprocess.run(
+        [scad_path, "-o", "temp.stl", "temp.scad"],
+        check=True,
+        stdout=subprocess.DEVNULL, 
+        stderr=subprocess.DEVNULL
+    )
+    
+    if os.path.exists("temp.stl"):
+        with open("temp.stl", "rb") as f:
+            return f.read()
+    return None
+
 if generated_obj:
     scad_code = scad_render(generated_obj)
     
-    # 3D Preview Generation
-    try:
-        def render_preview(code, scad_path):
-            with open("temp.scad", "w") as f:
-                f.write(code)
-            
-            if not os.path.exists(scad_path):
-                raise FileNotFoundError("OpenSCAD executable not found at specified path.")
+    tab1, tab2, tab3 = st.tabs(["🖼️ 3D Preview", "📝 Source Code", "⚙️ Settings"])
 
-            subprocess.run(
-                [scad_path, "-o", "preview.png", "--imgsize=800,600", "--projection=ortho", "temp.scad"],
-                check=True,
-                stdout=subprocess.DEVNULL, 
-                stderr=subprocess.DEVNULL
-            )
-            
-        render_preview(scad_code, openscad_path)
-        
-        st.subheader("3D Preview")
-        if os.path.exists("preview.png"):
-            st.image("preview.png")
-            
-    except (FileNotFoundError, OSError) as e:
-        st.warning(f"Preview unavailable: {e}. Please check the OpenSCAD path in the sidebar.")
-    except subprocess.CalledProcessError:
-        st.warning("Preview generation failed. OpenSCAD encountered an error.")
-    except Exception as e:
-        st.warning(f"An error occurred during preview generation: {e}")
+    with tab3:
+        st.markdown("Only change this if the preview is not working. Default path: C:/Program Files/OpenSCAD/openscad.exe")
+        openscad_path = st.text_input(
+            "OpenSCAD Executable Path",
+            value=r"C:\Program Files (x86)\OpenSCAD\openscad.exe" 
+        )
 
-    st.subheader("Generated SCAD Code")
-    st.text_area("Copy this code into OpenSCAD:", value=scad_code, height=400)
+    with tab1:
+        # 3D Preview Generation
+        try:
+            with st.spinner("Hang on just there! Generating 3D Model... 🚀"):
+                stl_data = generate_stl_content(scad_code, openscad_path)
+            
+            if stl_data:
+                # write to a temp file for the component to read
+                # We reuse a single filename to avoid disk clutter, but since we have the data, we write it fresh.
+                with open("preview_cache.stl", "wb") as f:
+                    f.write(stl_data)
+                    
+                streamlit_stl.stl_from_file("preview_cache.stl", height=500)
+            else:
+                 st.warning("STL Generation produced no output.")
+                
+        except (FileNotFoundError, OSError) as e:
+            st.warning(f"Preview unavailable: {e}. Please check the OpenSCAD path in the sidebar.")
+        except subprocess.CalledProcessError:
+            st.warning("Preview generation failed. OpenSCAD encountered an error.")
+        except Exception as e:
+            st.warning(f"An error occurred during preview generation: {e}")
+
+    with tab2:
+        st.text_area("Copy this code into OpenSCAD:", value=scad_code, height=400)
     
     st.download_button(
         label="Download .scad file",
